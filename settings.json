@@ -1,0 +1,5 @@
+{
+	"name": "Your bot name",
+	"token": "bot token",
+	"pluginFolderPath": "./plugins"
+}
