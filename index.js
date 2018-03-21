@@ -162,8 +162,7 @@ class PluginLoader extends EventEmitter {
           this.plugins[pluginName].instance = new Plugin(new Register(this, pluginName));
           this.logger.info(`plugin "${pluginName}" load success`);
         } catch (e) {
-          this.logger.warn(`can't load plugin "${pluginName}"`);
-          throw e;
+          this.logger.warn(`Can't load plugin "${pluginName}", ignore.`);
         }
       }
     }
