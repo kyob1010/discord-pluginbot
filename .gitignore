@@ -1,6 +1,8 @@
 # for test issue
 settings.json
 
+plugins/*
+
 
 
 # Logs
