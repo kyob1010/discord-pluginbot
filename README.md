@@ -30,3 +30,7 @@ Forth, run this bot.
 ```
 node index.js
 ```
+
+---
+
+**This project is licensed under the terms of the MIT license.**
