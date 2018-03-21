@@ -10,7 +10,6 @@
   "license": "MIT",
   "dependencies": {
     "discord.js": "^11.3.2",
-    "lodash": "^4.17.4",
-    "request": "^2.85.0"
+    "lodash": "^4.17.4"
   }
 }
