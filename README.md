@@ -26,7 +26,7 @@ Second, modify your "settings.json".
 Third, install plugins.
 there is a example plugin for you in plugins folder.
 
-Fourth, run this bot.
+Forth, run this bot.
 ```
 node index.js
 ```
