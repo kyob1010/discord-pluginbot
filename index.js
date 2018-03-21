@@ -19,28 +19,67 @@ const Discord = require('discord.js');
 /////////////////////////////
 
 const readFile = util.promisify(fs.readFile);
+const writeFile = util.promisify(fs.writeFile);
 const readdir = util.promisify(fs.readdir);
+const rename = util.promisify(fs.rename);
+
+///////////////////////
+//  Constant Values  //
+///////////////////////
+
+const SETTINGS_FILENAME = "settings.json";
+const DEFAULT_SETTINGS = {
+  name: "Discord Pluginbot", 
+  token: "YOUR_DISCORD_BOT_TOKEN", 
+  pluginFolderPath: "./plugins", 
+};
 
 /////////////////////////////
 //         Register        //
 /////////////////////////////
 
 class Register extends EventEmitter {
-  constructor(options) {
+  constructor(pluginLoader, pluginName) {
     super();
-    this.commands = options.commands;
+    this.pluginName = pluginName;
+    this.registCommand = (commandName, commandHandler) => {
+      return pluginLoader.registCommand(this.pluginName, commandName, commandHandler);
+    }
   }
-  registCommand(commandname, options, commandHandler) {
-    if (commandHandler === undefined) commandHandler = options;
-    if (commandname in this.commands) throw new Error(`Command "${commandname}" already exist!`);
-    this.commands[commandname] = commandHandler;
-  }
-  unregistCommand(commandname, commandHandler) {
-    if (commandname in this.commands) delete this.commands.commandname;
-    else throw new Error('this command already exist!');
-  }
+
   registEvent(eventname, cb) {
     this.on(eventname, cb);
+  }
+}
+
+////////////////////////////////////////////////////////////////////////
+//                               Logger                               //
+////////////////////////////////////////////////////////////////////////
+
+class Logger {
+
+  debug() {
+    console.info(`[Debug] ${arguments[0]}`);
+  }
+
+  log() {
+    this.info.call(null, arguments);
+  }
+ 
+  error() {
+    console.error(`[Error] ${arguments[0]}`);
+  }
+
+  info() {
+    console.info(`[Info] ${arguments[0]}`);
+  }
+
+  warn() {
+    console.info(`[Warn] ${arguments[0]}`);
+  }
+
+  fatal() {
+    console.error(`[Fatal] ${arguments[0]}`);
   }
 }
 
@@ -48,91 +87,110 @@ class Register extends EventEmitter {
 //       PluginLoader      //
 /////////////////////////////
 
-class PluginLoader {
+class PluginLoader extends EventEmitter {
   constructor() {
+    super();
+    //
     this.settings = {};
-    this.bot = new Discord.Client(); // 用來與 discord 溝通的 bot
-    this.commands = {}; // 指令表
-    this.register = new Register({ commands: this.commands});
+    this.bot = new Discord.Client(); // bot interact with discord
+    this.logger = new Logger();
     this.plugins = {};
+
+    // events
     this.bot.on('ready', this.botReadyHandle.bind(this)); // 設定 bot 的 onReady callback
     this.bot.on('message', this.botMessagehandle.bind(this)); // 設定 bot 的 onMessage callback
-    // 註冊程式於任何情況下離開都必須呼叫 exitHandle
-    process.on('exit', this.exitHandle.bind(this, {cleanup:true}));
-    process.on('SIGINT', this.exitHandle.bind(this, {cleanup:true,exit:true}));
-    process.on('SIGUSR1', this.exitHandle.bind(this, {cleanup:true,exit:true}));
-    process.on('SIGUSR2', this.exitHandle.bind(this, {cleanup:true,exit:true}));
-    process.on('uncaughtException', this.exitHandle.bind(this, {cleanup:true,exit:true}));
+
+    // must call function 'exitHandle' anyway bot terminate
+    process.on('exit', this.exitHandle.bind(this, { cleanup: true }));
+    process.on('SIGINT', this.exitHandle.bind(this, { cleanup: true, exit: true }));
+    process.on('SIGUSR1', this.exitHandle.bind(this, { cleanup: true, exit: true }));
+    process.on('SIGUSR2', this.exitHandle.bind(this, { cleanup: true, exit: true }));
+    process.on('uncaughtException', this.exitHandle.bind(this, { cleanup:true, exit:true }));
   }
+
+  ////////////
+  //  Load  //
+  ////////////
   
-  async start() {
-    // 讀取設定檔案
-    await this.loadSettings();
-    // 載入插件
-    await this.loadPlugins(this.settings.pluginFolderPath);
-    // Bot 登入
-    this.bot.login(this.settings.token);
-    // 啟用插件
-    this.startPlugins();
+  async createSettingFile() {
+    // check the setting file exist
+    let settingFileFullPath = path.join(__dirname, SETTINGS_FILENAME);
+    this.logger.debug(`setting file full path = ${settingFileFullPath}`);
+    //
+    let oldSettingFileFullPath = settingFileFullPath;
+    let pathParseObj = path.parse(oldSettingFileFullPath);
+    oldSettingFileFullPath = path.join(pathParseObj.dir, pathParseObj.name + "_old", pathParseObj.ext);
+    // if setting file exist, just rename it
+    try {
+      await rename(settingFileFullPath, oldSettingFileFullPath);
+    } catch (ok) {} // old file not exist, it's ok
+    // create new setting file
+    await writeFile(settingFileFullPath, JSON.stringify(DEFAULT_SETTINGS, null, 2));
   }
-  
+
   async loadSettings() {
-    let settingFile, settings;
+    let settings, settingFile;
     //
     try {
-      settingFile = await readFile('./settings.json');
+      settingFile = await readFile(SETTINGS_FILENAME);
     } catch (err) {
-      console.error(`Bot 啟動失敗。原因: 無法讀取設定檔案。`);
-      return;
+      this.logger.fatal(`Can't read setting file "${SETTINGS_FILENAME}", program will automatic trying to create one.`);
+      await this.createSettingFile(); // try to create one
+      this.exitHandle({ exit: true }); // exit
     }
     //
     try {
-      settings = this.settings = JSON.parse(settingFile);
+      this.settings = JSON.parse(settingFile);
     } catch (err) {
-      console.error(`Bot 啟動失敗。原因: 設定檔案並不是合法的 json。`);
-      return;
+      this.logger.fatal(`setting file is not a vaild json`);
+      this.exitHandle({ exit: true }); // exit
     }
-    //
-    settings = _.defaults(settings, {
-      name: "", 
-      token: "",
-    });
-    //
-    
   }
-  
-  async loadPlugins(pluginFolderPath) {
+
+  async loadPlugins() {
+    let pluginFolderPath = this.settings.pluginFolderPath;
     // 讀取插件檔案
-    let filenames = await readdir(pluginFolderPath);
-    for (let filename of filenames) {
-      if (filename.endsWith('js')) { // 僅有 js 結尾的可能為插件檔案
+    let pluginFolderNames = await readdir(pluginFolderPath);
+    for (let pluginFolderName of pluginFolderNames) {
+      let filestat = fs.lstatSync(path.join(pluginFolderPath, pluginFolderName));
+      if (filestat.isDirectory()) { // may a plugin, try to load
+        const pluginName = pluginFolderName;
         try {
-          // 嘗試載入插件
-          let pluginPath = path.join(pluginFolderPath, filename);
-          let {Plugin} = require('./' + pluginPath);
-		  if (Plugin == undefined) continue; // not a plugin, ignore
-          let plugin = new Plugin();
-          this.plugins[filename] = plugin;
+          let Plugin = require("./" + path.join(pluginFolderPath, pluginFolderName));
+          if (typeof Plugin != 'function') continue; // not a plugin, ignore
+          this.plugins[pluginName] = { instance: null, commands: {} };
+          this.plugins[pluginName].instance = new Plugin(new Register(this, pluginName));
         } catch (e) {
-          console.error(`插件 ${filename} 無法載入，已略過。原因: ${e}`);
+          this.logger.error(`插件 ${pluginFolderName} 無法載入。`);
+          throw e;
         }
       }
     }
   }
-  
-  // 啟用插件
-  startPlugins() {
-    for (let key in this.plugins) {
-      let plugin = this.plugins[key];
-      plugin.start(this.register);
-    }
+
+  ////////////////////
+  //  Register API  //
+  ////////////////////
+
+  registCommand(pluginName, commandName, commandHandler) {
+    this.plugins[pluginName].commands[commandName] = commandHandler;
+  }
+
+  ////////////
+  //  Main  //
+  ////////////
+
+  async start() {
+    await this.loadSettings();
+    await this.loadPlugins();
+    this.bot.login(this.settings.token);
   }
   
   // 當 bot 登入成功後的 callback
   botReadyHandle() {
     let botname = this.settings.name
-    console.log(`${botname} 已啟動`);
     this.bot.user.setActivity(botname);
+    this.logger.info(`${botname} 已啟動`);
   }
   
   // 當 bot 收到 message 的 callback
@@ -146,13 +204,16 @@ class PluginLoader {
     // 保證參數必定是 message 的參考
     arg.unshift(message);
     // 執行命令
-    if (commandname in this.commands) this.commands[commandname].apply(null, arg);
+    for (let pluginName in this.plugins) {
+      let plugin = this.plugins[pluginName];
+      if (commandname in plugin.commands) plugin.commands[commandname].apply(null, arg);
+    }
   }
   
   // 當程式離開的 callback
   exitHandle(options, err) {
-    if (options.cleanup) this.register.emit('exit');
-    if (err) console.log(err.stack);
+    if (options.cleanup) this.emit('exit');
+    if (err) this.logger.error(err.stack);
     if (options.exit) process.exit();
   }
 }
