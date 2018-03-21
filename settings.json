@@ -1,5 +1,5 @@
 {
-  name: "Discord Pluginbot",
-  token: "YOUR_DISCORD_BOT_TOKEN",
-  pluginFolderPath: "./plugins"
+  "name": "Discord Pluginbot",
+  "token": "YOUR_DISCORD_BOT_TOKEN",
+  "pluginFolderPath": "./plugins"
 }
