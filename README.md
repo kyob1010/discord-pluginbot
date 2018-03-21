@@ -14,7 +14,19 @@ cd discord-pluginbot
 npm install
 ```
 
-Second, run this bot.
+Second, modify your "settings.json".
+```
+{
+  "name": "Discord Pluginbot",
+  "token": "YOUR_DISCORD_BOT_TOKEN",
+  "pluginFolderPath": "./plugins"
+}
+```
+
+Third, install plugins.
+there is a example plugin for you in plugins folder.
+
+Fourth, run this bot.
 ```
 node index.js
 ```
