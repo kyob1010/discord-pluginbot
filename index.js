@@ -160,8 +160,9 @@ class PluginLoader extends EventEmitter {
           if (typeof Plugin != 'function') continue; // not a plugin, ignore
           this.plugins[pluginName] = { instance: null, commands: {} };
           this.plugins[pluginName].instance = new Plugin(new Register(this, pluginName));
+          this.logger.info(`plugin "${pluginName}" load success`);
         } catch (e) {
-          this.logger.error(`插件 ${pluginFolderName} 無法載入。`);
+          this.logger.warn(`can't load plugin "${pluginName}"`);
           throw e;
         }
       }
