@@ -1,11 +1,22 @@
 {
   "name": "exampleplugin",
   "version": "1.0.0",
-  "description": "",
+  "description": "an example plugin for discord-pluginbot",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "MIT"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyob1010/discord-pluginbot.git"
+  },
+  "keywords": [
+    "discordbot"
+  ],
+  "author": "kyob1010",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kyob1010/discord-pluginbot/issues"
+  },
+  "homepage": "https://github.com/kyob1010/discord-pluginbot#readme"
 }
