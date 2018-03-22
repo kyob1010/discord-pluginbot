@@ -38,17 +38,18 @@ const DEFAULT_SETTINGS = {
 //         Register        //
 /////////////////////////////
 
-class Register extends EventEmitter {
+class Register {
   constructor(pluginLoader, pluginName) {
-    super();
     this.pluginName = pluginName;
     this.registCommand = (commandName, commandHandler) => {
       return pluginLoader.registCommand(this.pluginName, commandName, commandHandler);
     }
-  }
-
-  registEvent(eventname, cb) {
-    this.on(eventname, cb);
+    this.unregistCommand = (commandName) => {
+      return pluginLoader.unregistCommand(this.pluginName, commandName);
+    }
+    this.registEvent = (eventname, cb) => {
+      pluginLoader.on(eventname, cb);
+    }
   }
 }
 
@@ -174,6 +175,10 @@ class PluginLoader extends EventEmitter {
 
   registCommand(pluginName, commandName, commandHandler) {
     this.plugins[pluginName].commands[commandName] = commandHandler;
+  }
+
+  unregistCommand(pluginName, commandName) {
+    delete this.plugins[pluginName].commands[commandName];
   }
 
   ////////////

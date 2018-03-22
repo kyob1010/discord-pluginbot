@@ -1,5 +1,5 @@
 {
-  "name": "Discord Pluginbot",
-  "token": "YOUR_DISCORD_BOT_TOKEN",
-  "pluginFolderPath": "./plugins"
+	"name": "《終雨夜》聊天群組",
+	"token": "MzgzNjIwODk2OTg1OTcyNzM2.DPm6kg.Xnh7DgjA-uryK7hR_3K99Vt19LA",
+	"pluginFolderPath": "./plugins"
 }
