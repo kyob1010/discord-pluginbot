@@ -254,7 +254,7 @@ class PluginLoader extends EventEmitter {
   
   // 當 bot 收到 message 的 callback
   botMessagehandle(message) {
-    this.logger.info(`Received message ${message.cleanContent}`);
+    this.logger.info(`<${message.author}> ${message.cleanContent}`);
     let bot = this.bot;
     if (message.author.bot) return; // don't process bot message
     let messageSlices = message.content.match(/(".+?"|\S+?)+/g);
