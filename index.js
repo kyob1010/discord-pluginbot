@@ -18,6 +18,8 @@ const Discord = require('discord.js');
 //    Promisify Function   //
 /////////////////////////////
 
+const mkdir = util.promisify(fs.mkdir);
+const appendFile = util.promisify(fs.appendFile);
 const readFile = util.promisify(fs.readFile);
 const writeFile = util.promisify(fs.writeFile);
 const readdir = util.promisify(fs.readdir);
@@ -58,6 +60,28 @@ class Register {
 ////////////////////////////////////////////////////////////////////////
 
 class Logger {
+  constructor() {
+    this.logFilename = `discordbot-pluginloader-${(new Date()).toISOString()}.log`;
+    this.initialize();
+  }
+
+  initialize() {
+    try {
+      fs.mkdirSync('logs');
+    } catch (ok) {} // it's ok
+  }
+
+  async writeLog(log) {
+    return appendFile(path.join('./', 'logs', this.logFilename), log + '\n', 'utf8');
+  }
+
+  async writeLogs(logs) {
+    let packLog = "";
+    for (let log in logs) {
+      packLog += logs + "\n";
+    }
+    return this.writeLog(packLog.slice(0, -1));
+  }
 
   debug() {
     console.info(`[Debug] ${arguments[0]}`);
@@ -66,21 +90,50 @@ class Logger {
   log() {
     this.info.call(null, arguments);
   }
- 
-  error() {
-    console.error(`[Error] ${arguments[0]}`);
+
+  formatMessage(type, message) {
+    let msg = `[${new Date().toISOString().replace('T', ' ').replace(/\..+/, "")}][${type}] ${message}`;
+    return msg;
   }
 
+  formatMessages(type, messages) {
+    let msgs = [];
+    for (let msg of messages) {
+      msgs.push(this.formatMessage(type, msg));
+    }
+    return msgs;
+  }
+ 
   info() {
-    console.info(`[Info] ${arguments[0]}`);
+    let messages = this.formatMessages("Info", arguments);
+    for (let message of messages) {
+      console.log(message);
+    }
+    this.writeLogs(messages);
+  }
+
+  error() {
+    let messages = this.formatMessages("Error", arguments);
+    for (let message of messages) {
+      console.log(message);
+    }
+    this.writeLogs(messages);
   }
 
   warn() {
-    console.info(`[Warn] ${arguments[0]}`);
+    let messages = this.formatMessages("Warn", arguments);
+    for (let message of messages) {
+      console.log(message);
+    }
+    this.writeLogs(messages);
   }
 
   fatal() {
-    console.error(`[Fatal] ${arguments[0]}`);
+    let messages = this.formatMessages("Fatal", arguments);
+    for (let message of messages) {
+      console.log(message);
+    }
+    this.writeLogs(messages);
   }
 }
 
@@ -163,7 +216,7 @@ class PluginLoader extends EventEmitter {
           this.plugins[pluginName].instance = new Plugin(new Register(this, pluginName));
           this.logger.info(`plugin "${pluginName}" load success`);
         } catch (e) {
-          this.logger.warn(`Can't load plugin "${pluginName}", ignore.`);
+          this.logger.warn(`Can't load plugin "${pluginName}", ignore. Error: ${e}`);
         }
       }
     }
@@ -189,6 +242,7 @@ class PluginLoader extends EventEmitter {
     await this.loadSettings();
     await this.loadPlugins();
     this.bot.login(this.settings.token);
+    this.emit('ready'); // ready event;
   }
   
   // 當 bot 登入成功後的 callback
@@ -200,24 +254,36 @@ class PluginLoader extends EventEmitter {
   
   // 當 bot 收到 message 的 callback
   botMessagehandle(message) {
+    this.logger.info(`Received message ${message.cleanContent}`);
     let bot = this.bot;
-    if (message.author.bot) return;
-    let message_slices = message.content.match(/(".+?"|\S+?)+/g);
-    if (message_slices == null) return; // 訊息不需處理
-    let commandname = message_slices[0];
-    let arg = message_slices;
+    if (message.author.bot) return; // don't process bot message
+    let messageSlices = message.content.match(/(".+?"|\S+?)+/g);
+    if (messageSlices == null) return; // 訊息不需處理
+    let commandname = messageSlices[0];
+    let arg = messageSlices;
     // 保證參數必定是 message 的參考
     arg.unshift(message);
     // 執行命令
     for (let pluginName in this.plugins) {
       let plugin = this.plugins[pluginName];
-      if (commandname in plugin.commands) plugin.commands[commandname].apply(null, arg);
+      if (commandname in plugin.commands) {
+        try {
+          plugin.commands[commandname].apply(null, arg);
+        } catch (e) {
+          this.logger.warn(`${pluginName}:${commandname} execution fail.`);
+          this.logger.warn(e);
+        }
+      }
     }
   }
   
   // 當程式離開的 callback
   exitHandle(options, err) {
-    if (options.cleanup) this.emit('exit');
+    if (options.cleanup) {
+      try {
+       this.emit('exit'); 
+      } catch (ok) {} // just ignore
+    }
     if (err) this.logger.error(err.stack);
     if (options.exit) process.exit();
   }
